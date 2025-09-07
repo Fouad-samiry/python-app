@@ -255,4 +255,26 @@ class TestAppPrompts(unittest.TestCase):
                 df = app._prompt_csv()
                 self.assertEqual(list(df.columns), ["x"])
 
-        
+
+
+
+class TestSmoke(unittest.TestCase):
+    def test_end_to_end_tiny(self):
+        # Minimal end-to-end utan GridSearch, bara passera objekten
+        X, y = make_reg_df(n=20)
+        ct = FeaturePreprocessor().build(X, False, False)
+        pipe = SkPipe([("prep", ct), ("model", LinearRegression())])
+        pipe.fit(X, y)
+        rep = Reporter()
+        rep.reg("Linear Regression", {"note": "no params"}, {
+            "MAE": 0.1, "RMSE": 0.2, "R2": 0.9
+        })
+        with tempfile.TemporaryDirectory() as td:
+            stem = os.path.join(td, "best_lr")
+            p = Persister().save(pipe, {
+                "Linear Regression": {
+                    "best_params": {"note": "no params"},
+                    "metrics": {"MAE": 0.1, "RMSE": 0.2, "R2": 0.9},
+                }
+            }, "Linear Regression", stem)
+            self.assertTrue(os.path.exists(p))
