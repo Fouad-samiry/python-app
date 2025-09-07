@@ -1,30 +1,110 @@
+# tests/test_project_plan.py
+# ---------------------------------------------------------------------
+# Project plan (test checklist)
+# 1- Create constructor that take path to our data.
+# 2- Method to validate that all data is numeric.
+# 3- Method to validate No Missing Data.
+# 4- Method to choose independent and nonindependent columns.
+# 5- Method to split data into X_train, X_test, y_train, y_test.
+# 6- Method to train model.
+# 7- Method to predict.
+# 8- Method to calculate Metrics values: RMSE, MAE (and R2/Accuracy).
+# ---------------------------------------------------------------------
+
+
+
+
+
+
+# tests/test_model_finder.py
 import os
+import io
 import json
-import unittest
 import tempfile
+import unittest
+from unittest.mock import patch
 import numpy as np
 import pandas as pd
-from unittest.mock import patch
-from model_finder import (
-    DataLoader, TargetValidator, DataReadinessChecker,
-    FeaturePreprocessor, RegressorTrainer, ClassifierTrainer,
-    Reporter, Persister, App
-)
-from sklearn.datasets import make_regression, make_classification
 
+from model_finder import (
+    DataLoader, TargetValidator, DataReadinessChecker, FeaturePreprocessor,
+    RegressorTrainer, ClassifierTrainer, Reporter, Persister, App)
+
+
+
+
+def make_reg_df(n=40, seed=0):
+    rng = np.random.default_rng(seed)
+    X = pd.DataFrame({
+        "x1": rng.normal(size=n),
+        "x2": rng.normal(size=n),
+    })
+    y = 2.0 * X["x1"] - 0.5 * X["x2"] + rng.normal(scale=0.1, size=n)
+    return X, y
+
+def make_cls_df(n=60, seed=0):
+    rng = np.random.default_rng(seed)
+    X0 = rng.normal(loc=-1.0, scale=0.6, size=(n//2, 2))
+    X1 = rng.normal(loc=+1.0, scale=0.6, size=(n - n//2, 2))
+    X = pd.DataFrame(np.vstack([X0, X1]), columns=["f1", "f2"])
+    y = pd.Series([0]*(n//2) + [1]*(n - n//2), name="target")
+    return X, y
 
 
 class TestDataLoader(unittest.TestCase):
-    pass
-
-
-
-
-
-
+    def test_load_csv_ok_and_list_columns(self):
+        dl = DataLoader()
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "toy.csv")
+            pd.DataFrame({"a": [1, 2], "b": [3, 4]}).to_csv(path, index=False)
+            df = dl.load_csv(path)
+            self.assertEqual(list(df.columns), ["a", "b"])
+            cols = dl.list_columns(df)
+            self.assertEqual(cols, ["a", "b"])
+            
+    def test_load_csv_missing_raises(self):
+        dl = DataLoader()
+        with self.assertRaises(FileNotFoundError):
+            dl.load_csv("no_such.csv")
 
 
 
 
 class TestTargetValidator(unittest.TestCase):
-    pass
+    def test_detect_type_and_validate(self):
+        tv = TargetValidator()
+        # regression target
+        X, y = make_reg_df(n=30)
+        t = tv.detect_type(y)
+        self.assertEqual(t, "Continuous")
+        self.assertEqual(tv.validate_match("Regression", y), "Continuous")
+        # classification target
+        Xc, yc = make_cls_df(n=30)
+        t2 = tv.detect_type(yc)
+        self.assertEqual(t2, "Categorical")
+        self.assertEqual(tv.validate_match("Classification", yc), "Categorical")
+        # mismatch
+        with self.assertRaises(ValueError):
+            tv.validate_match("Regression", yc)
+        with self.assertRaises(ValueError):
+            tv.validate_match("Classification", y)
+
+
+
+
+class TestDataReadinessChecker(unittest.TestCase):
+    def test_assess_ready(self):
+        X, _ = make_reg_df(n=10)
+        ok, report = DataReadinessChecker().assess(X)
+        self.assertTrue(ok)
+        self.assertEqual(report, {})
+        
+    def test_assess_missing_and_categorical(self):    
+        X = pd.DataFrame({
+            "num": [1.0, None, 3.0],
+            "cat": ["a", "b", "a"],
+        })
+        ok, report = DataReadinessChecker().assess(X)
+        self.assertFalse(ok)
+        self.assertIn("missing", report)
+        self.assertIn("categorical", report)
