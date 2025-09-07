@@ -25,7 +25,8 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 import pandas as pd
-
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import Pipeline as SkPipe
 from model_finder import (
     DataLoader, TargetValidator, DataReadinessChecker, FeaturePreprocessor,
     RegressorTrainer, ClassifierTrainer, Reporter, Persister, App)
@@ -120,7 +121,6 @@ class TestFeaturePreprocessor(unittest.TestCase):
         })
         ct = FeaturePreprocessor().build(X, auto_impute=True, auto_dummies=True)
         self.assertIsNotNone(ct)
-        # fit-transform ska fungera
         Z = ct.fit_transform(X)
         self.assertEqual(Z.shape[0], 3)
         
@@ -129,4 +129,18 @@ class TestFeaturePreprocessor(unittest.TestCase):
         ct = FeaturePreprocessor().build(X, auto_impute=False, auto_dummies=False)
         Z = ct.fit_transform(X)
         self.assertEqual(Z.shape[0], 3)
-    
+
+
+
+
+class TestRegressorTrainer(unittest.TestCase):
+    def test_train_linear_regression_no_grid(self):
+        X, y = make_reg_df(n=40)
+        ct = FeaturePreprocessor().build(X, auto_impute=False, auto_dummies=False)
+        trainer = RegressorTrainer(ct)
+        pipe = SkPipe([("prep", ct), ("model", LinearRegression())])
+        model, params = trainer.fit_grid(pipe, {}, X, y)
+        self.assertIn("note", params)
+        metrics = trainer.eval(model, X.iloc[:10], y.iloc[:10])
+        for k in ["MAE", "RMSE", "R2"]:
+            self.assertIn(k, metrics)
