@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SkPipe
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline as SkPipe
 from model_finder import (
     DataLoader, TargetValidator, DataReadinessChecker, FeaturePreprocessor,
     RegressorTrainer, ClassifierTrainer, Reporter, Persister, App)
@@ -144,3 +146,18 @@ class TestRegressorTrainer(unittest.TestCase):
         metrics = trainer.eval(model, X.iloc[:10], y.iloc[:10])
         for k in ["MAE", "RMSE", "R2"]:
             self.assertIn(k, metrics)
+            
+            
+            
+            
+class TestClassifierTrainer(unittest.TestCase):
+    def test_train_knn_no_grid(self):
+        X, y = make_cls_df(n=50)
+        ct = FeaturePreprocessor().build(X, auto_impute=False, auto_dummies=False)
+        trainer = ClassifierTrainer(ct)
+        pipe = SkPipe([("prep", ct), ("model", KNeighborsClassifier(n_neighbors=3))])
+        model, params = trainer.fit_grid(pipe, {}, X, y)
+        self.assertIn("note", params)
+        metrics = trainer.eval(model, X.iloc[:12], y.iloc[:12])
+        for k in ["Accuracy", "classification_report", "confusion_matrix"]:
+            self.assertIn(k, metrics)            
