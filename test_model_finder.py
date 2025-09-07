@@ -25,12 +25,11 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 import pandas as pd
+import sys
+from contextlib import redirect_stdout
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SkPipe
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.pipeline import Pipeline as SkPipe
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.pipeline import Pipeline as SkPipe
 from model_finder import (
     DataLoader, TargetValidator, DataReadinessChecker, FeaturePreprocessor,
     RegressorTrainer, ClassifierTrainer, Reporter, Persister, App)
@@ -170,33 +169,26 @@ class TestClassifierTrainer(unittest.TestCase):
 class TestReporter(unittest.TestCase):
     def test_reporter_reg_and_cls(self):
         rep = Reporter()
-        # regression print
+        
+        
+        # capture stdout for reg 
         buf = io.StringIO()
-        sys_stdout = sys.stdout
-        try:
-            sys.stdout = buf
+        with redirect_stdout(buf):
             rep.reg("Linear Regression", {"note": "no params"}, {
                 "MAE": 0.1, "RMSE": 0.2, "R2": 0.9
             })
-        finally:
-            sys.stdout = sys_stdout
         self.assertIn("Linear Regression", buf.getvalue())
-
-
+        
+        # create and save CM-plot in temp dir for cls
         with tempfile.TemporaryDirectory() as td:
             cm = np.array([[3, 1], [0, 4]])
             buf2 = io.StringIO()
-            sys_stdout = sys.stdout
-            try:
-                sys.stdout = buf2
+            with redirect_stdout(buf2):
                 rep.cls("KNN", {"note": "no params"}, {
                     "Accuracy": 0.88,
                     "classification_report": "ok",
                     "confusion_matrix": cm,
                 }, out_dir=td)
-            finally:
-                sys.stdout = sys_stdout
-            # en png ska finnas
             files = [f for f in os.listdir(td) if f.endswith(".png")]
             self.assertTrue(files)
             
@@ -221,7 +213,8 @@ class TestPersister(unittest.TestCase):
             path = Persister().save(pipe, results, "KNN", stem)
             self.assertTrue(os.path.exists(path))
             self.assertTrue(os.path.exists(stem + "_metrics.json"))
-            data = json.load(open(stem + "_metrics.json"))
+            with open(stem + "_metrics.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
             self.assertEqual(data["best_model"], "KNN")
             
             
