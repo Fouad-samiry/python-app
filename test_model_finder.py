@@ -222,5 +222,37 @@ class TestPersister(unittest.TestCase):
             self.assertTrue(os.path.exists(path))
             self.assertTrue(os.path.exists(stem + "_metrics.json"))
             data = json.load(open(stem + "_metrics.json"))
-            self.assertEqual(data["best_model"], "KNN").
+            self.assertEqual(data["best_model"], "KNN")
+            
+            
+            
+            
+class TestAppPrompts(unittest.TestCase):
+    def test_yes_no(self):
+        app = App()
+        with patch("builtins.input", side_effect=["maybe", "y"]):
+            self.assertTrue(app._yes_no("q? "))
+        with patch("builtins.input", side_effect=["No"]):
+            self.assertFalse(app._yes_no("q? "))
+
+    def test_prompt_task(self):
+        app = App()
+        with patch("builtins.input", side_effect=["wrong", "Regression"]):
+            self.assertEqual(app._prompt_task(), "Regression")
+
+    def test_prompt_target_by_index(self):
+        app = App()
+        cols = ["a", "b", "c"]
+        with patch("builtins.input", side_effect=["1"]):
+            self.assertEqual(app._prompt_target(cols), "b")
+
+    def test_prompt_csv_ok_after_fail(self):
+        app = App()
+        with tempfile.TemporaryDirectory() as td:
+            good = os.path.join(td, "toy.csv")
+            pd.DataFrame({"x": [1, 2]}).to_csv(good, index=False)
+            with patch("builtins.input", side_effect=["nope.csv", good]):
+                df = app._prompt_csv()
+                self.assertEqual(list(df.columns), ["x"])
+
         
