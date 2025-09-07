@@ -243,13 +243,10 @@ class RegressorTrainer(TrainerBase):
             "RMSE": float(np.sqrt(mean_squared_error(y_te, pred))),
             "R2": float(r2_score(y_te, pred)),
         }
-
-
-
-
-
-
-
+        
+        
+        
+        
 class ClassifierTrainer(TrainerBase):
     scoring = "accuracy"
     
@@ -311,38 +308,263 @@ class ClassifierTrainer(TrainerBase):
             "classification_report": classification_report(y_te, pred),
             "confusion_matrix": confusion_matrix(y_te, pred),
         }
-
-
-
-
-
-
+        
+        
+        
+        
 class Reporter:
-    pass
+    def reg(self, name: str, params: dict, m: dict) -> None:
+        print(f"\n--- {name} ---")
+        print("Best params:", params)
+        print(
+            f"MAE: {m['MAE']:.4f} | RMSE: {m['RMSE']:.4f} | "
+            f"R2: {m['R2']:.4f}"
+        )
+    
+    def cls(
+        self,
+        name: str,
+        params: dict,
+        m: dict,
+        out_dir: str = "reports",
+    ) -> None:
+        print(f"\n--- {name} ---")
+        print("Best params:", params)
+        print(f"Accuracy: {m['Accuracy']:.4f}")
+        print(m["classification_report"])
 
+        cm = m["confusion_matrix"]
+        fig, ax = plt.subplots(figsize=(4, 4))
+        im = ax.imshow(cm, interpolation="nearest")
+        ax.set_title(f"{name} – Confusion Matrix")
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("True")
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                ax.text(j, i, cm[i, j], ha="center", va="center")
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-
-
-
-
+        os.makedirs(out_dir, exist_ok=True)
+        out = os.path.join(
+            out_dir, f"confmat_{name.replace(' ', '_').lower()}.png"
+        )
+        plt.tight_layout()
+        fig.savefig(out)
+        plt.close(fig)
+        print(f"Confusion matrix saved to: {out}")
+        
+        
+        
+        
 class Persister:
-    pass
+    def save(
+        self,
+        pipeline,
+        all_results: dict,
+        best_name: str,
+        stem: str,
+    ) -> str:
+        os.makedirs(os.path.dirname(stem) or ".", exist_ok=True)
+        model_path = f"{stem}.pkl"
 
+        safe: dict = {}
+        for k, v in all_results.items():
+            met = v["metrics"]
+            m2: dict = {}
+            for mk, mv in met.items():
+                m2[mk] = mv.tolist() if hasattr(mv, "tolist") else mv
+            safe[k] = {"best_params": v["best_params"], "metrics": m2}
 
-
-
-
-
-
-
-
-
+        joblib.dump(pipeline, model_path)
+        with open(f"{stem}_metrics.json", "w", encoding="utf-8") as f:
+            json.dump(
+                {"best_model": best_name, "results": safe},
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+        return os.path.abspath(model_path)
+    
+    
+    
+    
 class App:
-    pass
+    def __init__(self):
+        self.loader = DataLoader()
+        self.validator = TargetValidator()
+        self.checker = DataReadinessChecker()
+        self.prep = FeaturePreprocessor()
+        self.reporter = Reporter()
+        self.persist = Persister()
+        
+        
+        
+        
+    def _prompt_task(self) -> str:
+        while True:
+            s = input(
+                "Select Task (Regression or Classification): "
+            ).strip()
+            s = s.capitalize()
+            if s in ("Regression", "Classification"):
+                return s
+            print("Invalid task. Type 'Regression' or 'Classification'.")
 
+    def _prompt_csv(self) -> pd.DataFrame:
+        while True:
+            path = input("Enter CSV path: ").strip()
+            try:
+                return self.loader.load_csv(path)
+            except FileNotFoundError:
+                print("File not found. Try again.")
+            except ValueError as e:
+                print(f"{e}. Try again.")
 
+    def _prompt_target(self, cols: list[str]) -> str:
+        lower = {c.lower(): c for c in cols}
+        print("Enter target column name (or index):")
+        for i, c in enumerate(cols):
+            print(f"  [{i}] {c}")
+        while True:
+            s = input("> ").strip()
+            if s.isdigit():
+                i = int(s)
+                if 0 <= i < len(cols):
+                    return cols[i]
+                print(f"Index out of range 0..{len(cols)-1}. Try again.")
+                continue
+            if s.lower() in lower:
+                return lower[s.lower()]
+            sug = get_close_matches(s, cols, n=1, cutoff=0.6)
+            if sug:
+                a = input(f"Did you mean '{sug[0]}'? (y/n): ").strip().lower()
+                if a == "y":
+                    return sug[0]
+            print("Column not found. Try again.")
 
+    def _yes_no(self, msg: str) -> bool:
+        while True:
+            a = input(msg).strip().lower()
+            if a in ("yes", "y"):
+                return True
+            if a in ("no", "n"):
+                return False
+            print("Please answer yes or no.")
+            
+            
+            
+    def run(self):
+        # 1) Uppgiftstyp (robust)
+        task = self._prompt_task()
+
+        # 2) CSV (robust)
+        df = self._prompt_csv()
+        cols = self.loader.list_columns(df)
+
+        # 3) Target (robust)
+        target = self._prompt_target(cols)
+        df = df.dropna(subset=[target]).reset_index(drop=True)
+        y = df[target]
+        X = df.drop(columns=[target])
+
+        # 3a) Typvalidering
+        ttype = self.validator.validate_match(task, y)
+        print(f"Target '{target}' detected as {ttype}. ✓ matches task.")
+
+        # 4a/4b) Ready-check
+        ready, report = self.checker.assess(X)
+        if not ready:
+            self.checker.print_report(report)
+            do_impute = (
+                "missing" in report and
+                self._yes_no("Auto-impute missing? (yes/no): ")
+            )
+            do_dummies = (
+                "categorical" in report and
+                self._yes_no("Create dummies? (yes/no): ")
+            )
+            if not (do_impute or do_dummies):
+                print("Exit. Please fix data and rerun.")
+                raise SystemExit(1)
+            print("Auto-fix enabled.")
+        else:
+            do_impute = do_dummies = False
+            print("Data is ready.")
+
+        # Preprocess + split
+        ct = self.prep.build(X, do_impute, do_dummies)
+        stratify = y if task == "Classification" else None
+        Xtr, Xte, ytr, yte = train_test_split(
+            X, y, test_size=0.3, random_state=42, stratify=stratify
+        )
+
+        results: dict = {}
+        best_name, best_score, best_model = None, float("-inf"), None
+
+        if task == "Regression":
+            trainer = RegressorTrainer(ct)
+            for name, (pipe, grid) in trainer.models().items():
+                print(f"\nTraining {name} (cv=10, scoring=R2)...")
+                model, best_params = trainer.fit_grid(pipe, grid, Xtr, ytr)
+                metrics = trainer.eval(model, Xte, yte)
+                self.reporter.reg(name, best_params, metrics)
+                results[name] = {
+                    "best_params": best_params,
+                    "metrics": metrics,
+                }
+                if metrics["R2"] > best_score:
+                    best_name = name
+                    best_score = metrics["R2"]
+                    best_model = model
+            print(f"\nBest model: {best_name} (R2={best_score:.4f})")
+
+        else:
+            trainer = ClassifierTrainer(ct)
+            for name, (pipe, grid) in trainer.models().items():
+                print(f"\nTraining {name} (cv=10, scoring=Accuracy)...")
+                model, best_params = trainer.fit_grid(pipe, grid, Xtr, ytr)
+                metrics = trainer.eval(model, Xte, yte)
+                self.reporter.cls(name, best_params, metrics)
+                save_metrics = dict(metrics)
+                if hasattr(save_metrics["confusion_matrix"], "tolist"):
+                    save_metrics["confusion_matrix"] = (
+                        save_metrics["confusion_matrix"].tolist()
+                    )
+                results[name] = {
+                    "best_params": best_params,
+                    "metrics": save_metrics,
+                }
+                if metrics["Accuracy"] > best_score:
+                    best_name = name
+                    best_score = metrics["Accuracy"]
+                    best_model = model
+            print(
+                f"\nBest model: {best_name} "
+                f"(Accuracy={best_score:.4f})"
+            )
+
+        # 4e) Bekräfta och spara
+        agree = self._yes_no(
+            f"\nDo you agree '{best_name}' is the best? (yes/no): "
+        )
+        if agree:
+            stem = input(
+                "Enter file name (without extension): "
+            ).strip() or f"best_{best_name.replace(' ', '_').lower()}"
+            path_saved = self.persist.save(
+                best_model, results, best_name, stem
+            )
+            print(f"Saved model to: {path_saved}")
+            print(f"Saved metrics to: {stem}_metrics.json")
+        else:
+            print("No model was saved.")
+            
+            
+            
 
 if __name__ == "__main__":
+    try:
         App().run()
-        pass
+    except (KeyboardInterrupt, EOFError):
+        print("\nAborted.")
+        sys.exit(1)
