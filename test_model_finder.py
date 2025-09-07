@@ -108,3 +108,25 @@ class TestDataReadinessChecker(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("missing", report)
         self.assertIn("categorical", report)
+        
+        
+        
+        
+class TestFeaturePreprocessor(unittest.TestCase):
+    def test_build_with_impute_and_dummies(self):
+        X = pd.DataFrame({
+            "n1": [1.0, None, 3.0],
+            "c1": ["x", "y", "x"],
+        })
+        ct = FeaturePreprocessor().build(X, auto_impute=True, auto_dummies=True)
+        self.assertIsNotNone(ct)
+        # fit-transform ska fungera
+        Z = ct.fit_transform(X)
+        self.assertEqual(Z.shape[0], 3)
+        
+    def test_build_no_cats_no_impute(self):
+        X = pd.DataFrame({"n1": [1.0, 2.0, 3.0]})
+        ct = FeaturePreprocessor().build(X, auto_impute=False, auto_dummies=False)
+        Z = ct.fit_transform(X)
+        self.assertEqual(Z.shape[0], 3)
+    
