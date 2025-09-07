@@ -1,0 +1,62 @@
+# --- OS ---
+.DS_Store
+Thumbs.db            # valfritt (Windows)
+.AppleDouble         # valfritt (macOS nätverksfiler)
+
+# --- Python: bytecode & cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtuell miljö ---
+.venv/
+venv/
+env/
+.python-version      # valfritt (pyenv)
+
+# --- Bygg / distribution ---
+build/
+dist/
+*.egg-info/
+*.egg
+
+# --- Notebook-checkpoints ---
+.ipynb_checkpoints/
+
+# --- Verktygs-cachar ---
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/         # valfritt (ruff)
+
+# --- Coverage ---
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- IDE ---
+.vscode/
+.idea/
+
+# --- Dotenv / lokala hemligheter ---
+.env                 # valfritt (om du använder python-dotenv)
+.env.*               # valfritt
+*.env                # valfritt
+
+# --- Loggar ---
+*.log
+
+# --- ML-artefakter (ändras varje körning) ---
+reports/             # CM-bilder m.m.
+*.pkl                # sparade modeller
+*_metrics.json       # exporterade metrics
+
+# --- Data ---
+# Lägg större/lokala dataset i data/
+data/*
+!data/.gitkeep
+# Vitlista små demo-CSV som du vill ha i repo:
+!Advertising.csv
+!breastcancer_test.csv
