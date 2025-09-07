@@ -161,3 +161,39 @@ class TestClassifierTrainer(unittest.TestCase):
         metrics = trainer.eval(model, X.iloc[:12], y.iloc[:12])
         for k in ["Accuracy", "classification_report", "confusion_matrix"]:
             self.assertIn(k, metrics)            
+            
+            
+            
+            
+class TestReporter(unittest.TestCase):
+    def test_reporter_reg_and_cls(self):
+        rep = Reporter()
+        # regression print
+        buf = io.StringIO()
+        sys_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            rep.reg("Linear Regression", {"note": "no params"}, {
+                "MAE": 0.1, "RMSE": 0.2, "R2": 0.9
+            })
+        finally:
+            sys.stdout = sys_stdout
+        self.assertIn("Linear Regression", buf.getvalue())
+
+        # classification CM bild
+        with tempfile.TemporaryDirectory() as td:
+            cm = np.array([[3, 1], [0, 4]])
+            buf2 = io.StringIO()
+            sys_stdout = sys.stdout
+            try:
+                sys.stdout = buf2
+                rep.cls("KNN", {"note": "no params"}, {
+                    "Accuracy": 0.88,
+                    "classification_report": "ok",
+                    "confusion_matrix": cm,
+                }, out_dir=td)
+            finally:
+                sys.stdout = sys_stdout
+            # en png ska finnas
+            files = [f for f in os.listdir(td) if f.endswith(".png")]
+            self.assertTrue(files)
