@@ -29,6 +29,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SkPipe
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline as SkPipe
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline as SkPipe
 from model_finder import (
     DataLoader, TargetValidator, DataReadinessChecker, FeaturePreprocessor,
     RegressorTrainer, ClassifierTrainer, Reporter, Persister, App)
@@ -180,7 +182,7 @@ class TestReporter(unittest.TestCase):
             sys.stdout = sys_stdout
         self.assertIn("Linear Regression", buf.getvalue())
 
-        # classification CM bild
+
         with tempfile.TemporaryDirectory() as td:
             cm = np.array([[3, 1], [0, 4]])
             buf2 = io.StringIO()
@@ -197,3 +199,28 @@ class TestReporter(unittest.TestCase):
             # en png ska finnas
             files = [f for f in os.listdir(td) if f.endswith(".png")]
             self.assertTrue(files)
+            
+            
+            
+            
+class TestPersister(unittest.TestCase):
+    def test_save_model_and_metrics(self):
+        X, y = make_cls_df(n=40)
+        ct = FeaturePreprocessor().build(X, auto_impute=False, auto_dummies=False)
+        pipe = SkPipe([("prep", ct), ("model", KNeighborsClassifier(n_neighbors=3))])
+        pipe.fit(X, y)
+
+        results = {
+            "KNN": {
+                "best_params": {"note": "no params"},
+                "metrics": {"Accuracy": 1.0, "confusion_matrix": [[5,0],[0,5]]}
+            }
+        }
+        with tempfile.TemporaryDirectory() as td:
+            stem = os.path.join(td, "best_knn")
+            path = Persister().save(pipe, results, "KNN", stem)
+            self.assertTrue(os.path.exists(path))
+            self.assertTrue(os.path.exists(stem + "_metrics.json"))
+            data = json.load(open(stem + "_metrics.json"))
+            self.assertEqual(data["best_model"], "KNN")
+        
