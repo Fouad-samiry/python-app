@@ -222,5 +222,5 @@ class TestPersister(unittest.TestCase):
             self.assertTrue(os.path.exists(path))
             self.assertTrue(os.path.exists(stem + "_metrics.json"))
             data = json.load(open(stem + "_metrics.json"))
-            self.assertEqual(data["best_model"], "KNN")
+            self.assertEqual(data["best_model"], "KNN").
         
