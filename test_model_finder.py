@@ -1,4 +1,4 @@
-# tests/test_project_plan.py
+# project plan
 # ---------------------------------------------------------------------
 # Project plan (test checklist)
 # 1- Create constructor that take path to our data.
